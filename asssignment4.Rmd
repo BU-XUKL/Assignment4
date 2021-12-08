@@ -1,0 +1,342 @@
+---
+title: "Assignment4"
+author: "Keliang Xu"
+date: "11/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(stringr)
+library(tidytext)
+library(gutenbergr)
+library(tidyr)
+library(textdata)
+library(RColorBrewer)
+library(wordcloud)
+library(reshape2)
+library(ggplot2)
+
+library(tnum)
+library(knitr)
+library(kableExtra)
+library(tnum)
+library(sentimentr)
+library(ggpubr)
+```
+
+## Task One
+
+I choose The Hound of the Baskervilles by Arthur Conan Doyle.
+https://www.gutenberg.org/ebooks/2852
+
+
+```{r,echo=FALSE}
+data("stop_words")
+
+Holmes<-gutenberg_download(2852)
+
+tidy_Holmes <- Holmes %>%
+  mutate(
+    linenumber =row_number(),
+    chapter = cumsum(str_detect(text, 
+                                regex("^chapter [\\divxlc]", 
+                                      ignore_case = TRUE)))
+  )%>%
+  unnest_tokens(word,text) %>%
+  anti_join(stop_words)
+
+tidy_Holmes %>% count(word,sort=TRUE)
+```
+
+
+
+## Task Two
+
+All the functions and approach to sentiment analysis detailed in Text Mining with R.
+https://www.tidytextmining.com/sentiment.html
+
+
+### Sentiment analysis with inner join
+
+```{r,warning=FALSE}
+
+nrc_joy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+tidy_Holmes %>%
+  inner_join(nrc_joy) %>%
+  count(word, sort = TRUE)
+
+
+Holmes_sentiment <- tidy_Holmes %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+
+ggplot(Holmes_sentiment, aes(index, sentiment)) +
+  geom_col(show.legend = FALSE) 
+```
+
+2. The outputs show that the net sentiment (positive - negative) has a very high frequency.
+
+This book mainly tells about Holmes's adventures in investigating the case. The atmosphere in the book will be created according to the case. This case is shrouded in negative elements such as curse, ignorance and death, so the sentiment dictionaries in the book are mostly negative.
+
+### Comparing the three sentiment dictionaries
+
+```{r,warning=FALSE}
+
+afinn <- tidy_Holmes %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = linenumber %/% 80) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(
+  tidy_Holmes %>% 
+    inner_join(get_sentiments("bing")) %>%
+    mutate(method = "Bing et al."),
+  tidy_Holmes %>% 
+    inner_join(get_sentiments("nrc") %>% 
+                 filter(sentiment %in% c("positive", 
+                                         "negative"))
+    ) %>%
+    mutate(method = "NRC")) %>%
+  count(method, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+
+bind_rows(afinn, 
+          bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+
+```
+
+The three different lexicons for calculating sentiment give results that are different in an absolute sense but have similar relative trajectories through the novel. The first two plots are the same as the plot above. Actually I don't know why the third one is different from other.
+
+### Most common positive and negative words
+
+```{r,warning=FALSE}
+bing_word_counts <- tidy_Holmes %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+
+bing_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+
+### Wordclouds
+
+```{r,warning=FALSE}
+tidy_Holmes %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+#positive and negative
+tidy_Holmes %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("gray20", "gray80"),
+                   max.words = 100)
+```
+ 
+ All the words analysis shows that this text -- Story of Holmes has a lot of negative words. The frequency of negative words is higher rank than positive, and there are more negative words at wordclouds. 
+
+
+### Looking at units beyond just words
+
+```{r}
+
+Holmes_sentences <- tibble(Holmes) %>% 
+  unnest_tokens(sentence, text, token = "sentences")
+
+bingnegative <- get_sentiments("bing") %>% 
+  filter(sentiment == "negative")
+
+wordcounts <- tidy_Holmes %>%
+  group_by( chapter) %>%
+  summarize(words = n())
+
+tidy_Holmes %>%
+  semi_join(bingnegative) %>%
+  group_by(chapter) %>%
+  summarize(negativewords = n()) %>%
+  left_join(wordcounts, by = c("chapter")) %>%
+  mutate(ratio = negativewords/words) %>%
+  filter(chapter != 0) %>% 
+  ungroup()
+
+```
+### Another Lexicon
+
+I find loughran lexicon. And I try to use that to reflect on the results of the book.
+
+```{r,warning=FALSE}
+
+loughranwords<-get_sentiments("loughran")
+table(loughranwords$sentiment)
+```
+It contains much more index of the words. But I try to use just the positive and negative.
+```{r}
+
+
+Holmes_sentiment <- tidy_Holmes %>%
+  inner_join(get_sentiments("loughran")) %>%
+  count(index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+ggplot(Holmes_sentiment, aes(index, sentiment)) +
+  geom_col(show.legend = FALSE) 
+
+bing_word_counts <- tidy_Holmes %>%
+  inner_join(get_sentiments("loughran")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+```
+I find that it can be seen from the plot that the negative number of (positive-negative) words means that there are many negative words. But we also know that there are more negative words in this dictionary than positive words. Therefore, although he is still the same as the previous conclusions, this book has more negative vocabulary, but this dictionary can not be arbitrarily said to be effective.
+
+### verbal description
+
+The Hound of the Baskervilles is a suspenseful novel that outlines the process in which the protagonist Holmes and his assistant Watson encountered a suspenseful incident and resolved it. The whole writing uses a suspenseful atmosphere, so all the word analysis shows that there are many negative words in the article.
+
+
+## Task Three
+
+### Tnum ingester
+
+```{r,warning=FALSE,message=FALSE}
+tnum.authorize("mssp1.bu.edu")
+tnum.setSpace("test2")
+
+source("Book2TN-v6A-1.R")
+
+#Holmes<-gutenberg_download(2852)
+#write.table(Holmes, file = "holmes.txt", sep = "\t",row.names = F, col.names = T)
+
+Holmes_txt<-read.table("Holmes.txt",header = T)
+#tnBooksFromLines(Holmes_txt$text, "holmes/hound")
+
+tnum.getDBPathList(taxonomy="subject", levels=1)
+#tnum.getDBPathList(taxonomy="subject", levels=2)
+
+q4 <- tnum.query("holmes/hound# has text", max = 15)
+df4 <- tnum.objectsToDf(q4)
+head(df4)
+```
+
+You can see that in the output result, there is the path holmes, which proves that I uploaded the file to test2.
+
+### Sentimerntr
+
+
+```{r}
+para_text4 <- df4 %>% pull(string.value) %>% 
+                      str_replace_all("\"","") %>% 
+                      str_flatten(collapse = " ")
+
+hound<-get_sentences(para_text4)
+sentiment(hound)
+```
+
+
+```{r}
+
+houndall <- tnum.query("holmes/hound# has text", max = 2870) %>%tnum.objectsToDf()
+
+houndall_sen<-get_sentences(houndall)
+sentiment(houndall_sen)
+
+houndall_with_pol <- houndall %>% 
+  get_sentences() %>% 
+  sentiment() %>% 
+  mutate(polarity_level = ifelse(sentiment < 0.2, "Negative",
+                                 ifelse(sentiment > 0.2, "Positive","Neutral")))
+           
+houndall_with_pol %>% filter(polarity_level == "Negative") #%>% View()
+
+Holmes_sentiment <- tidy_Holmes %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(index = linenumber , sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+houndword <- Holmes_sentiment %>% mutate(element_id=NA)
+for(i in 1:length(Holmes_sentiment$index)){
+  houndword$element_id[i]=i
+}
+
+houndall %>% 
+  get_sentences() %>% 
+  sentiment_by(by = NULL) %>% #View()
+  ggplot() + geom_density(aes(ave_sentiment))
+
+
+p1<-ggplot(houndall_with_pol ) +
+  geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
+  ggtitle("sentence-level analysis")
+
+p2<-ggplot(houndword, aes(element_id, sentiment)) +
+  geom_col(show.legend = FALSE,color="BLUE")  + 
+  ggtitle("words analysis")
+ggpubr::ggarrange(p1,p2,nrow=2,ncol=1)
+```
+
+It can be seen from these two plots that sentence-level analysis has more results. Although the absolute value of both is within 4, the results of words analysis are all integers. The upward and downward trends are actually relatively consistent, so I think this result is meaningful.
+
+
+
+```{r,echo=FALSE,include=FALSE}
+## Term Frequency and Inverse Document Frequency
+book_words <- Holmes %>%
+  unnest_tokens(word,text) %>%
+  count(word,sort = TRUE)
+book_words
+
+
+total=sum(book_words$n)
+
+# errror
+#ggplot(book_words, aes(n/total_words)) +
+#geom_histogram(show.legend = FALSE) +
+#xlim(NA, 0.0009) +
+#facet_wrap(~book, ncol = 3, scales = "free_y") +
+#theme(text=element_text(size=10))+
+#theme( axis.text.x = element_text(angle = -45, vjust = -0.1, hjust=0, size=5))+
+#labs(title="Term frequency distribution in Jane Austen’s novels")
+
+
+freq_by_rank <- book_words %>%
+mutate(rank = row_number(),
+`term frequency` = n/total) 
+
+
+freq_by_rank
+
+
+freq_by_rank[1:15,] %>% kable()
+```
