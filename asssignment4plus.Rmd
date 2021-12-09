@@ -102,7 +102,8 @@ tmp<-NA
 for(i in 1:length(df$subject)){
   tmp<-word_df$string.value[i]
   tmp<-data.frame(tmp)
-  tidy_tmp <- tmp %>%
+ 
+   tidy_tmp <- tmp %>%
     mutate(
      chapter = cumsum(str_detect(tmp, regex("^chapter [\\divxlc]", ignore_case = TRUE)))
   )%>%
@@ -114,7 +115,12 @@ for(i in 1:length(df$subject)){
   
   word_df$bing[i]<-sum(tmp_sentiment$sentiment=="positive")-sum(tmp_sentiment$sentiment=="negative")
 }
+```
 
+Next I'll use Task two method to analysis the sentence. I will seperate the words from each sentence and compare to which just use function sentiment_by().
+
+
+```{r}
 plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$bing)
 plot_holmes<- cbind(plot_holmes,group="bing")
 plot_2<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
@@ -124,14 +130,14 @@ plot_holmes<-rbind(plot_holmes,plot_2)
 plot_holmes<-data.frame(plot_holmes)
 
 for(i in 1:length(plot_holmes$element_id)){
-  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]))
+  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]),2)
 }
 plot_holmes$element_id<-as.numeric(plot_holmes$element_id)
 plot_holmes$sentiment<-as.numeric(plot_holmes$sentiment)
 
 p1<-ggplot(plot_holmes[1:2865,] ) +
   geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
-  ggtitle("words analysis with BING")
+  ggtitle("sentence-level with BING words by words")
 
 p2<-ggplot(plot_holmes[2866:5730,])+
   geom_col(aes(element_id, sentiment) ,show.legend = FALSE,color="BLUE")  + 
@@ -166,7 +172,9 @@ for(i in 1:length(df$subject)){
   
   word_df$nrc[i]<-sum(tmp_sentiment$sentiment=="positive")-sum(tmp_sentiment$sentiment=="negative")
 }
+```
 
+```{r}
 plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$nrc)
 plot_holmes<- cbind(plot_holmes,group="nrc")
 plot_2<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
@@ -176,14 +184,14 @@ plot_holmes<-rbind(plot_holmes,plot_2)
 plot_holmes<-data.frame(plot_holmes)
 
 for(i in 1:length(plot_holmes$element_id)){
-  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]))
+  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]),2)
 }
 plot_holmes$element_id<-as.numeric(plot_holmes$element_id)
 plot_holmes$sentiment<-as.numeric(plot_holmes$sentiment)
 
 p1<-ggplot(plot_holmes[1:2865,] ) +
   geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
-  ggtitle("words analysis with NRC")
+  ggtitle("sentence-level with NRC words by words")
 
 p2<-ggplot(plot_holmes[2866:5730,])+
   geom_col(aes(element_id, sentiment) ,show.legend = FALSE,color="BLUE")  + 
