@@ -89,11 +89,13 @@ geom="histogram",binwidth=0.1,main="Review Sentiment Histogram with processing d
 ```
 Comparing these two plots, we can find that if the text is not processed, there will be a lot of 0 values, because it is similar to a chapter or a blank line will be doubled as 0.
 
-### word analysis in sentence
+## Sentence analysis compare to Task two 
 
+
+### Sentence analysis by BING sentiment lexicon
 
 I analyzed each sentence word by word and got sentiment score for word analysis.
-Comparing with Bing index word analysis.
+Comparing with Bing sentiment lexicon word analysis.
 
 ```{r,warning=FALSE,message=FALSE}
 word_df<-df %>% select(subject,property,string.value)
@@ -117,10 +119,10 @@ for(i in 1:length(df$subject)){
 }
 ```
 
-Next I'll use Task two method to analysis the sentence. I will seperate the words from each sentence and compare to which just use function sentiment_by().
+Next I'll use Task two method to analysis the sentence. I will separate the words from each sentence and compare to which just use function sentiment_by().
 
 
-```{r}
+```{r,warning=FALSE}
 plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$bing)
 plot_holmes<- cbind(plot_holmes,group="bing")
 plot_2<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
@@ -148,6 +150,7 @@ ggplot(plot_holmes, aes(element_id, sentiment,color=group)) +
   geom_col(show.legend = FALSE) 
 ```
 
+### Sentence analysis by NRC sentiment lexicon
 
 Comparing with NRC index word analysis.
 
@@ -174,7 +177,7 @@ for(i in 1:length(df$subject)){
 }
 ```
 
-```{r}
+```{r,warning=FALSE}
 plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$nrc)
 plot_holmes<- cbind(plot_holmes,group="nrc")
 plot_2<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
@@ -192,6 +195,115 @@ plot_holmes$sentiment<-as.numeric(plot_holmes$sentiment)
 p1<-ggplot(plot_holmes[1:2865,] ) +
   geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
   ggtitle("sentence-level with NRC words by words")
+
+p2<-ggplot(plot_holmes[2866:5730,])+
+  geom_col(aes(element_id, sentiment) ,show.legend = FALSE,color="BLUE")  + 
+  ggtitle("sentence-level analysis")
+ggpubr::ggarrange(p1,p2,nrow=2,ncol=1)
+
+ggplot(plot_holmes, aes(element_id, sentiment,color=group)) +
+  geom_col(show.legend = FALSE) 
+```
+
+### Sentence analysis by AFINN sentiment lexicon
+
+Comparing with AFINN index word analysis.
+
+```{r,warning=FALSE,message=FALSE}
+word_df<-df %>% select(subject,property,string.value)
+word_df<-cbind(word_df,afinn=0)
+tmp<-NA
+for(i in 1:length(df$subject)){
+  tmp<-word_df$string.value[i]
+  tmp<-data.frame(tmp)
+  tidy_tmp <- tmp %>%
+    mutate(
+     chapter = cumsum(str_detect(tmp, regex("^chapter [\\divxlc]", ignore_case = TRUE)))
+  )%>%
+  unnest_tokens(word,tmp) %>%
+  anti_join(stop_words)
+  
+  tmp_sentiment <- tidy_tmp %>%
+  inner_join(get_sentiments("afinn")) 
+                 
+  
+  word_df$afinn[i]<-sum(tmp_sentiment$value)-length(tmp_sentiment$value)
+}
+```
+
+```{r,warning=FALSE}
+plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$afinn)
+plot_holmes<- cbind(plot_holmes,group="affin")
+plot_3<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
+plot_3<-cbind(plot_3,group="Sentimerntr")
+plot_holmes<-rbind(plot_holmes,plot_3)
+
+plot_holmes<-data.frame(plot_holmes)
+
+for(i in 1:length(plot_holmes$element_id)){
+  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]),2)
+}
+plot_holmes$element_id<-as.numeric(plot_holmes$element_id)
+plot_holmes$sentiment<-as.numeric(plot_holmes$sentiment)
+
+p1<-ggplot(plot_holmes[1:2865,] ) +
+  geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
+  ggtitle("sentence-level with AFINN words by words")
+
+p2<-ggplot(plot_holmes[2866:5730,])+
+  geom_col(aes(element_id, sentiment) ,show.legend = FALSE,color="BLUE")  + 
+  ggtitle("sentence-level analysis")
+ggpubr::ggarrange(p1,p2,nrow=2,ncol=1)
+
+ggplot(plot_holmes, aes(element_id, sentiment,color=group)) +
+  geom_col(show.legend = FALSE) 
+```
+
+### Sentence analysis by LOUGHRAN sentiment lexicon
+
+Comparing with LOUGHRAN index word analysis.
+
+```{r,warning=FALSE,message=FALSE}
+word_df<-df %>% select(subject,property,string.value)
+word_df<-cbind(word_df,loughran=0)
+tmp<-NA
+for(i in 1:length(df$subject)){
+  tmp<-word_df$string.value[i]
+  tmp<-data.frame(tmp)
+  tidy_tmp <- tmp %>%
+    mutate(
+     chapter = cumsum(str_detect(tmp, regex("^chapter [\\divxlc]", ignore_case = TRUE)))
+  )%>%
+  unnest_tokens(word,tmp) %>%
+  anti_join(stop_words)
+  
+  tmp_sentiment <- tidy_tmp %>%
+  inner_join(get_sentiments("loughran")) %>% 
+                 filter(sentiment %in% c("positive", 
+                                         "negative"))
+  
+  word_df$loughran[i]<-sum(tmp_sentiment$sentiment=="positive")-sum(tmp_sentiment$sentiment=="negative")
+}
+```
+
+```{r,warning=FALSE}
+plot_holmes<- cbind(element_id=sentiment_pro$element_id,sentiment=word_df$loughran)
+plot_holmes<- cbind(plot_holmes,group="loughran")
+plot_4<-cbind(element_id=sentiment_pro$element_id,sentiment=sentiment_pro$ave_sentiment)
+plot_4<-cbind(plot_4,group="Sentimerntr")
+plot_holmes<-rbind(plot_holmes,plot_4)
+
+plot_holmes<-data.frame(plot_holmes)
+
+for(i in 1:length(plot_holmes$element_id)){
+  plot_holmes$sentiment[i]<-round(as.numeric(plot_holmes$sentiment[i]),2)
+}
+plot_holmes$element_id<-as.numeric(plot_holmes$element_id)
+plot_holmes$sentiment<-as.numeric(plot_holmes$sentiment)
+
+p1<-ggplot(plot_holmes[1:2865,] ) +
+  geom_col(aes(element_id, sentiment),show.legend = FALSE,color="RED") + 
+  ggtitle("sentence-level with loughran words by words")
 
 p2<-ggplot(plot_holmes[2866:5730,])+
   geom_col(aes(element_id, sentiment) ,show.legend = FALSE,color="BLUE")  + 
